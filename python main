@@ -1,0 +1,87 @@
+import requests
+import random
+import time
+
+def get_supported_languages():
+    """Return a predefined list of supported languages for MyMemory API."""
+    return {
+        "en": "English", "es": "Spanish", "fr": "French", "de": "German", "it": "Italian",
+        "pt": "Portuguese", "nl": "Dutch", "pl": "Polish", "ru": "Russian", "zh": "Chinese",
+        "ja": "Japanese", "ko": "Korean", "ar": "Arabic", "tr": "Turkish", "sv": "Swedish",
+        "fi": "Finnish", "no": "Norwegian", "da": "Danish", "cs": "Czech", "hu": "Hungarian"
+    }
+
+def translate_text(text, source_lang, target_lang, retries=3):
+    """Translate text using MyMemory API with retry logic."""
+    if source_lang == target_lang:
+        print("Skipping translation: Source and target languages are the same.")
+        return text
+
+    url = "https://api.mymemory.translated.net/get"
+    params = {
+        "q": text,
+        "langpair": f"{source_lang}|{target_lang}"
+    }
+
+    for attempt in range(retries):
+        try:
+            response = requests.get(url, params=params, timeout=5)
+            if response.status_code == 200:
+                translated_text = response.json().get("responseData", {}).get("translatedText")
+                if translated_text:
+                    return translated_text
+                else:
+                    print("Translation API returned no result.")
+            else:
+                print(f"API Error {response.status_code}: {response.text}")
+        except requests.exceptions.RequestException as e:
+            print(f"Translation attempt {attempt + 1} failed: {e}")
+        time.sleep(1)  # Short delay before retrying
+    print("Translation failed. Using fallback.")
+    return text[::-1]  # Simple fallback: Reverse the text
+
+def bad_translator(text, iterations):
+    languages = get_supported_languages()
+    lang_codes = list(languages.keys())
+
+    log = []
+    current_text = text
+    current_lang = "en"
+
+    for i in range(iterations):
+        print(f"Iteration {i+1}/{iterations}...")
+        available_langs = [l for l in lang_codes if l != current_lang]
+        if not available_langs:
+            print("No valid languages available for translation.")
+            break
+        target_lang = random.choice(available_langs)
+        log.append(f"{languages.get(current_lang, current_lang)} -> {languages.get(target_lang, target_lang)}")
+        current_text = translate_text(current_text, current_lang, target_lang)
+        current_lang = target_lang
+
+    final_text = translate_text(current_text, current_lang, "en")
+    log.append(f"{languages.get(current_lang, current_lang)} -> English")
+
+    return final_text, log
+
+# Console input/output
+if __name__ == "__main__":
+    try:
+        user_text = input("Enter text: ").strip()
+    except OSError:
+        print("Interactive input not supported. Using default text.")
+        user_text = "Hello, world!"
+
+    try:
+        num_iterations = int(input("How many translations? "))
+    except (ValueError, OSError):
+        print("Invalid input or interactive input not supported. Using default of 3 translations.")
+        num_iterations = 3
+
+    result, log = bad_translator(user_text, num_iterations)
+
+    print("\nFinal Translation:")
+    print(result)
+    print("\nTranslation Path:")
+    for step in log:
+        print(" - " + step)
